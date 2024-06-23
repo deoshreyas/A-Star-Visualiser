@@ -13,6 +13,8 @@ BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+MAGENTA = (255, 0, 255)
 
 # GRID 
 grid = []
@@ -22,24 +24,26 @@ end = None
 
 # CELL CLASS
 # There are 3 types of cells - Start, End, Wall
+mode = 1 # first place the start cell, then end, and then draw walls
 class Cell:
     def __init__(self, grid_x, grid_y):
-        global start, end, grid  
+        global start, end, grid, mode  
         self.x = grid_x*CELL_SIZE
         self.y = grid_y*CELL_SIZE
-        if start is None: # START
+        if mode==1 and start is None: # START
             self.color = GREEN 
-            start = [grid_x, grid_y]
+            start = [grid_y, grid_x]
             special_cells.append(self)
-        elif end is None and [grid_x, grid_y]!=start: # END
+            mode = 2
+        elif mode==2 and end is None and [grid_y, grid_x]!=start: # END
             self.color = RED
-            end = [grid_x, grid_y]
+            end = [grid_y, grid_x]
             special_cells.append(self)
-        else: # WALL
-            if [grid_x, grid_y] != start and [grid_x, grid_y] != end:
-                grid[grid_y][grid_x] = 1
-                self.color = BLACK
-                special_cells.append(self)
+            mode = 3
+        elif mode==3 and [grid_y, grid_x] != start and [grid_y, grid_x] != end: # WALL
+            grid[grid_y][grid_x] = 1
+            self.color = BLACK
+            special_cells.append(self)
     
     def draw(self):
         pygame.draw.rect(window, self.color, (self.x, self.y, CELL_SIZE, CELL_SIZE))
@@ -58,11 +62,11 @@ def DrawGrid(WIDTH, HEIGHT):
     for cell in special_cells:
         cell.draw()
     for square in solution:
-        pygame.draw.rect(window, BLUE, (square[0]*CELL_SIZE, square[1]*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+        pygame.draw.rect(window, BLUE, (square[1]*CELL_SIZE, square[0]*CELL_SIZE, CELL_SIZE, CELL_SIZE))
 
 # CLEAR GRID 
 def ClearGrid():
-    global start, end
+    global start, end, mode
     for i in range(len(grid)):
         for j in range(len(grid[0])):
             grid[i][j] = 0
@@ -70,8 +74,9 @@ def ClearGrid():
     solution.clear()
     start = None
     end = None
+    mode = 1
 
-# A* ALGORITHM
+# A* ALGORITHM   
 
 # SQUARE CLASS
 class Square:
@@ -92,13 +97,13 @@ def is_unblocked(grid, row, col):
  
 # Check if a cell is the destination
 def is_destination(row, col, dest):
-    return row == dest[1] and col == dest[0]
+    return row == dest[0] and col == dest[1]
  
 # Calculate the heuristic value of a cell (Euclidean distance to destination)
 def calculate_h_value(row, col, dest):
     return ((row - dest[0]) ** 2 + (col - dest[1]) ** 2) ** 0.5
 
-# Add the solution of the maze to the solution list for displaying
+# Trace the path from source to destination
 def trace_path(cell_details, dest):
     row = dest[0]
     col = dest[1]
@@ -110,9 +115,6 @@ def trace_path(cell_details, dest):
         row = temp_row
         col = temp_col
         solution.append((row, col))
- 
-    # Reverse the path to get the path from source to destination
-    solution.reverse()
 
 def a_star(grid, start, end):
     # Initialize the closed list for visited cells 
@@ -151,6 +153,11 @@ def a_star(grid, start, end):
         for dir in directions:
             new_i = i + dir[0]
             new_j = j + dir[1]
+
+            # Draw and update the closed square
+            pygame.draw.rect(window, MAGENTA, (j*CELL_SIZE, i*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+            pygame.display.update()
+            pygame.time.delay(1)  # Delay to visualize the algorithm's progress
         
             # If the successor is valid, unblocked, and not visited
             if is_valid(new_i, new_j) and is_unblocked(grid, new_i, new_j) and not closed_list[new_i][new_j]:
@@ -159,8 +166,7 @@ def a_star(grid, start, end):
                     # Set the parent of the destination cell
                     squares[new_i][new_j].parent_i = i
                     squares[new_i][new_j].parent_j = j
-                    print("The destination cell is found")
-                    # Trace and print the path from source to destination
+                    # Store the solution of the maze to display
                     trace_path(squares, end)
                     found_dest = True
                     return
@@ -180,8 +186,12 @@ def a_star(grid, start, end):
                         squares[new_i][new_j].h = h_new
                         squares[new_i][new_j].parent_i = i
                         squares[new_i][new_j].parent_j = j
+
+                        # Draw and update the open square
+                        pygame.draw.rect(window, YELLOW, (new_j*CELL_SIZE, new_i*CELL_SIZE, CELL_SIZE, CELL_SIZE))
+                        pygame.display.update()
  
-    # If the destination is not found after visiting all cells
+    # If the destination is not found after visiting all cells, it doesn't exist
     if not found_dest:
         print("Failed to find the destination cell")
 
@@ -198,7 +208,7 @@ while running:
             pygame.quit()
             exit()
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_c:
+            if event.key == pygame.K_c and not solving:
                 ClearGrid()
             if event.key == pygame.K_SPACE:
                 solving = True
